@@ -20,4 +20,4 @@ RUN pip3 install \
 #ENV OS_INTERFACE
 #ENV OS_IDENTITY_API_VERSION 
 
-CMD [ "openstack", "versions", "show" ]
+ENTRYPOINT [ "openstack" ]
