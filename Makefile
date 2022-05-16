@@ -49,6 +49,9 @@ setup-tekton:
 		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
 		  apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/docker-build/0.1/docker-build.yaml
 
+		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		  apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/aws-cli/0.2/aws-cli.yaml
+
 
 		# deploy image registry
 		#kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
@@ -70,7 +73,7 @@ deploy-pipelines:
 
 
 		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
-		  apply -f ./tekton/task.yaml
+		  apply -f ./tekton/task-build-capo-openstack-image.yaml
 
 
 		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
