@@ -1,7 +1,12 @@
 KIND_CLUSTER_NAME?=tekton-testing
 KUBECONFIG_FOLDER?=/tmp
+datestring=$(shell date +"%Y-%d-%m-%H-%M-%S") 
 
 export 
+
+info: 
+	curl 192.168.122.5:5000/v2/admin/image-builder/tags/list
+
 
 buildimage:
 		docker build -t capo-image ./build-image
@@ -25,6 +30,8 @@ buildimage-no-kvm:
 		-v `pwd`/cache:/home/imagebuilder/packer_cache/ \
 		capo-image make build-qemu-ubuntu-2004
 
+setup-registry-secret:
+	kubectl create secret docker-registry local-registry --docker-server=192.168.122.5:5000 --docker-username=admin --docker-password=admin --docker-email=admin
 
 
 setup-tekton:
@@ -52,7 +59,13 @@ setup-tekton:
 		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
 		  apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/aws-cli/0.2/aws-cli.yaml
 
+		kubectl create secret docker-registry local-registry \
+			--docker-server="192.168.122.5:5000" \
+			--docker-username=admin \
+			--docker-password=admin
 
+		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		  apply -f ./tekton/sa.yaml
 		# deploy image registry
 		#kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
 		#	apply -f ./tekton/registry-deployment.yaml
@@ -69,21 +82,27 @@ run-task:
 
 		tkn taskrun logs -f -n default
 
-deploy-pipelines:
+build-openstack-image:
+		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		  apply -f ./tekton/task-build-capo-openstack-image.yaml
 
+		cat ./tekton/taskrun-build-openstack-image.yaml | sed "s/{time}/${datestring}/g"	 |	kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		  apply -f -
+
+deploy-pipelines:
 
 		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
 		  apply -f ./tekton/task-build-capo-openstack-image.yaml
 
 
-		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
-		  apply -f ./tekton/build-and-run-pipeline.yaml
+		#kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		#  apply -f ./tekton/build-and-run-pipeline.yaml
 
-		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
-		  delete -f ./tekton/build-and-run-pipelinerun.yaml;
+		#kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		#  apply -f ./tekton/build-and-run-pipelinerun.yaml
 
-		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
-		  apply -f ./tekton/build-and-run-pipelinerun.yaml
+		cat ./tekton/build-and-run-pipelinerun.yaml | sed "s/{time}/${datestring}/g"	 |	kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		  apply -f -
 
 		tkn pipelinerun logs -f -n default
 

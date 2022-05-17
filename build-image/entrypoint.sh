@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+echo "Entry Point started"
     
 cat  packer/config/kubernetes.json | \
     jq ".kubernetes_semver = \"v${KUBERNETES_VERSION}\""  > \
@@ -26,6 +27,7 @@ cat packer/raw/packer.json | \
     tmp && \
     mv tmp packer/raw/packer.json
 
-
+cat packer/qemu/packer.json
+cat packer/raw/packer.json
 
 exec "$@"
