@@ -1,0 +1,38 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-capo-openstack-image
+spec:
+  workspaces:
+  - name: output
+  params:
+  - name: ACCELERATOR
+    default: none
+  - name: KUBERNETES_SERIES
+    default: "1.23.6"
+  - name: KUBERNETES_VERSION
+    default: "1.23"
+  - name: PACKER_LOG
+    default: "1"
+  - name: build-image
+    default: {HOST_IP}:5000/image-builder:v1
+  steps:
+    - name: build-openstack-image
+      image: $(params.build-image)
+      securityContext:
+        privileged: true
+      env:
+        - name: ACCELERATOR
+          value: $(params.ACCELERATOR)
+        - name: KUBERNETES_SERIES
+          value: $(params.KUBERNETES_SERIES)
+        - name: KUBERNETES_VERSION
+          value: $(params.KUBERNETES_VERSION)
+        - name: PACKER_LOG
+          value: $(params.PACKER_LOG)
+      script: |
+                /entrypoint.sh make build-qemu-ubuntu-2004
+                cp -rf output/ubuntu-2004-kube-v${KUBERNETES_SERIES} $(workspaces.output.path)/output/
+                find $(workspaces.output.path)
+                sha256sum $(workspaces.output.path)/output/ubuntu-2004-kube-v${KUBERNETES_SERIES}/ubuntu-2004-kube-v${KUBERNETES_SERIES} > $(workspaces.output.path)/output/ubuntu-2004-kube-v${KUBERNETES_SERIES}/ubuntu-2004-kube-v${KUBERNETES_SERIES}.sha256sums
+      timeout: 4h

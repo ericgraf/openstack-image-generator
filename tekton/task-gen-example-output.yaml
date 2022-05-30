@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: gen-example-output
+spec:
+  workspaces:
+  - name: output
+  params:
+  - name: test-filename
+    default: test-filename
+  steps:
+    - name: gen-example-output-files
+      image: ubuntu:latest
+      env:
+        - name: FILENAME
+          value: $(params.test-filename)
+
+      script: |
+                mkdir -p $(workspaces.output.path)/output/${FILENAME}/;
+                touch $(workspaces.output.path)/output/${FILENAME}/${FILENAME}
+                sha256sum $(workspaces.output.path)/output/${FILENAME}/${FILENAME}
+                sha256sum $(workspaces.output.path)/output/${FILENAME}/${FILENAME} > $(workspaces.output.path)/output/${FILENAME}/${FILENAME}.sha256sums

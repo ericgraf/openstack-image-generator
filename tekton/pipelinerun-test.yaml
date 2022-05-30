@@ -1,0 +1,39 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: test-pipeline-run-{time}
+spec:
+  serviceAccountName: build-bot
+
+  pipelineSpec:
+    workspaces:
+    - name: output-ws
+    tasks:
+      - name: gen-example-output
+        taskRef:
+          name: gen-example-output
+        params:
+          - name: test-filename
+            value: 'eric-test'
+        workspaces:
+        - name: output
+          workspace: output-ws
+      - name: list-output-files
+        taskRef:
+          name: list-output-files
+        runAfter:
+            - gen-example-output
+        workspaces:
+        - name: output
+          workspace: output-ws
+
+  workspaces:
+    - name: output-ws  
+      volumeClaimTemplate:
+        spec:
+          accessModes: 
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

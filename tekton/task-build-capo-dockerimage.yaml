@@ -1,0 +1,19 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-capo-dockerfile
+spec:
+  steps:
+
+    - name: docker-build
+      taskRef:
+        name: docker-build
+      params:
+        - name: dockerfile
+          value: amd64/hello-world/Dockerfile
+        - name: context
+          value: amd64/hello-world/
+        - name: image
+          value: 192.168.122.5:5000/test/test-image:latest
+        - name: insecure_registry
+          value: 192.168.122.5:5000
