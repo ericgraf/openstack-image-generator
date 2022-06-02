@@ -2,6 +2,8 @@
 
 echo "Entry Point started"
     
+export KUBERNETES_SERIES=`echo "${KUBERNETES_VERSION%.*}"`
+
 cat  packer/config/kubernetes.json | \
     jq ".kubernetes_semver = \"v${KUBERNETES_VERSION}\""  > \
     tmp && \

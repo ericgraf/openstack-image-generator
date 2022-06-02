@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y qemu qemu-kvm jq
 USER imagebuilder
 
 ENV KUBERNETES_VERSION 1.21.12
-ENV KUBERNETES_SERIES 1.21
 ENV ACCELERATOR none
 ENV PACKER_LOG 1
 
