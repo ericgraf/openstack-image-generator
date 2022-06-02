@@ -16,7 +16,24 @@ kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/do
 kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/docker-build/0.1/tests/resources.yaml
 ```
 
-
+# Add aws secret
+```
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-credentials
+type: Opaque
+stringData:
+  credentials: |-
+    [default]
+    aws_access_key_id     = { aws_access_key_id }
+    aws_secret_access_key = { aws_secret_access_key }
+  config: |-
+    [default]
+    endpoint-url = {endpoint url}
+EOF
+```
 
 
 # Image creation steps

@@ -67,8 +67,9 @@ setup-tekton:
 		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
 		  apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/docker-build/0.1/docker-build.yaml
 
-		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
-		  apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/aws-cli/0.2/aws-cli.yaml
+		#kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		#  apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/aws-cli/0.2/aws-cli.yaml
+
 
 		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
 		    create secret docker-registry local-registry \
@@ -99,6 +100,21 @@ deploy-tasks:
 		cat ./tekton/task-gen-example-output.yaml \
 		| sed "s/{time}/${datestring}/g" | sed "s/{HOST_IP}/${HOST_IP}/g"	 |	kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
 		  apply -f -
+
+		kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+			apply -f ./tekton/task-aws-cli.yaml
+		#cat ./tekton/task-aws-cli-upload.yaml \
+		#| sed "s/{time}/${datestring}/g" | sed "s/{HOST_IP}/${HOST_IP}/g"	 |	kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		#  apply -f -
+
+
+
+taskrun-s3: deploy-tasks
+
+		cat ./tekton/taskrun-s3-upload.yaml | sed "s/{time}/${datestring}/g" | sed "s/{HOST_IP}/${HOST_IP}/g"	 |	kubectl --kubeconfig=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig \
+		  apply -f -
+
+		KUBECONFIG=${KUBECONFIG_FOLDER}/${KIND_CLUSTER_NAME}.kubeconfig tkn taskrun logs -f -n default
 
 run-pipeline-test: deploy-tasks
 

@@ -1,0 +1,40 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: output-test
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 6Gi
+---
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  name: build-s3-upload-{time}
+spec:
+  taskRef:
+    name: aws-cli
+
+  params:
+    - name: SCRIPT
+      value: |
+        pwd
+        #aws $1 ls s3://$3
+        find $(workspaces.source.path)
+        ls -lsa $(workspaces.source.path)
+        #aws $1 cp $(workspaces.source.path)/$2 s3://$3/
+    - name: ARGS
+      value:
+        - s3 --endpoint=
+        - 
+        - ubuntu-2004-kube-v1.22.9
+  workspaces:
+    - name: source
+      persistentVolumeClaim:
+        claimName: output-1-23-6
+    - name: secrets
+      secret:
+        secretName: aws-credentials
