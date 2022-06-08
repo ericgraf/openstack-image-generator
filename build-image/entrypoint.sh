@@ -29,6 +29,16 @@ cat packer/raw/packer.json | \
     tmp && \
     mv tmp packer/raw/packer.json
 
+cat packer/qemu/packer.json | \
+    jq ".variables.cpus = \"${CPUS}\"" > \
+    tmp && \
+    mv tmp packer/qemu/packer.json
+
+cat packer/qemu/packer.json | \
+    jq ".variables.memory = \"${MEMORY}\"" > \
+    tmp && \
+    mv tmp packer/qemu/packer.json
+
 cat packer/qemu/packer.json
 cat packer/raw/packer.json
 
