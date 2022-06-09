@@ -1,6 +1,0 @@
-openstackclient==5.5.0
-python-cinderclient==7.4.0
-python-octaviaclient==2.3.0
-python-designateclient==4.2.0
-python-glanceclient==3.3.0
-python-barbicanclient==5.1.0

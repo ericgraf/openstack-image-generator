@@ -1,0 +1,276 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+ name: build-bot
+secrets:
+ - name: local-registry
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: k8s-build-event-listener
+spec:
+  serviceAccountName: tekton-triggers-sa
+  triggers:
+    - name: k8s-build
+      bindings:
+        - ref: k8s-build-pipeline-binding
+      template:
+        ref: k8s-build-trigger-template
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: k8s-build-pipeline-binding
+spec:
+  params:
+  - name: k8sVersion
+    value: $(body.k8s.version)
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: k8s-build-trigger-template
+spec:
+  params:
+  - name: k8sVersion
+
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      name: k8s-build-$(tt.params.k8sVersion)
+    spec:
+      pipelineRef:
+        name: k8s-build
+      params:
+      - name: k8sVersion
+        value: $(tt.params.k8sVersion)
+      
+      serviceAccountName: build-bot
+      timeouts:
+        pipeline: "8h4m0s"
+        tasks: "6h0m0s"
+      workspaces:
+        - name: source-ws
+          subPath: source
+          volumeClaimTemplate:
+            metadata:
+              name: k8s-build-image-ws-pvc
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 5Gi
+        - name: output-ws  
+          volumeClaimTemplate:
+            metadata:
+              name: output-$(tt.params.k8sVersion)
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 5Gi
+        - name: secrets
+          secret:
+            secretName: aws-credentials
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-capo-openstack-image
+spec:
+  workspaces:
+  - name: output
+  params:
+  - name: ACCELERATOR
+    default: none
+  - name: KUBERNETES_VERSION
+    default: "1.24.1"
+  - name: PACKER_LOG
+    default: "1"
+  - name: CPUS
+    default: "4"
+  - name: MEMORY
+    default: "4096"
+  - name: build-image
+    default: <HOST_IP>:5000/image-builder:v1
+  steps:
+    - name: build-openstack-image
+      image: $(params.build-image)
+      resources:
+        requests:
+          memory: 6Gi
+          cpu: 4000m
+      securityContext:
+        privileged: true
+      env:
+        - name: ACCELERATOR
+          value: $(params.ACCELERATOR)
+        - name: KUBERNETES_VERSION
+          value: $(params.KUBERNETES_VERSION)
+        - name: PACKER_LOG
+          value: $(params.PACKER_LOG)
+        - name: CPUS
+          value: $(params.CPUS)
+        - name: MEMORY
+          value: $(params.MEMORY)
+      script: |
+                /entrypoint.sh make build-qemu-ubuntu-2004
+                pwd
+                ls -lsa ./
+                cp -rf output/ubuntu-2004-kube-v${KUBERNETES_VERSION} $(workspaces.output.path)/
+                rm -rf output/ubuntu-2004-kube-v${KUBERNETES_VERSION}
+                find $(workspaces.output.path)
+                # subshell to run sha256sum as local dir
+                (cd $(workspaces.output.path)/ubuntu-2004-kube-v${KUBERNETES_VERSION}/ && sha256sum ubuntu-2004-kube-v${KUBERNETES_VERSION} > ubuntu-2004-kube-v${KUBERNETES_VERSION}.sha256sums)
+      timeout: 4h
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: aws-cli
+
+spec:
+  workspaces:
+    - name: source
+      optional: true
+    - name: secrets
+      optional: true
+      mountPath: /root/.aws
+  params:
+    - name: SCRIPT
+      default: "aws $@"
+    - name: ARGS
+      default: ["help"]
+  steps:
+    - name: awscli
+      image: docker.io/amazon/aws-cli:2.0.52@sha256:1506cec98a7101c935176d440a14302ea528b8f92fcaf4a6f1ea2d7ecef7edc4 #tag: 2.0.52
+      script: "$(params.SCRIPT)"
+      args:
+        - "$(params.ARGS)"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: k8s-build
+spec:
+
+  params:
+  - name: k8sVersion
+  workspaces:
+  - name: source-ws
+  - name: output-ws
+  - name: secrets
+  tasks:
+    - name: test-image-present
+      taskSpec:
+        results:
+        - name: image-exists
+        steps:
+        - name: test-image-present
+          onError: continue
+          image: curlimages/curl
+          script: |-
+            set +e
+            curl registry.default.svc.cluster.local:5000/v2/admin/image-builder/tags/list | grep latest
+            echo -n $? > $(results.image-exists.path)
+
+    - name: fetch-repository
+      taskRef:
+        name: git-clone
+      runAfter:
+        - test-image-present
+      when:
+      - input: "$(tasks.test-image-present.results.image-exists)"
+        operator: notin
+        values: ["0"]
+      workspaces:
+        - name: output
+          workspace: source-ws
+      params:
+        - name: url
+          value: <GIT_REPO>
+        - name: subdirectory
+          value: ""
+        - name: deleteExisting
+          value: "true"
+        - name: revision
+          value: initial-dev
+
+    - name: docker-build
+      taskRef:
+        name: docker-build
+      when:
+      - input: "$(tasks.test-image-present.results.image-exists)"
+        operator: notin
+        values: ["0"]
+      runAfter:
+        - fetch-repository
+      workspaces:
+        - name: source
+          workspace: source-ws
+      params:
+        - name: dockerfile
+          value: ./build-image/Dockerfile
+        - name: context
+          value: ./build-image/
+        - name: image
+          value: registry.default.svc.cluster.local:5000/admin/image-builder
+        - name: insecure_registry
+          value: registry.default.svc.cluster.local:5000
+
+    - name: build-capo-openstack-image
+      timeout: 6h
+      taskRef:
+        name: build-capo-openstack-image
+      runAfter:
+          - docker-build
+      params:
+        - name: ACCELERATOR
+          value: 'none'
+        - name: KUBERNETES_VERSION
+          value: $(params.k8sVersion)
+        - name: PACKER_LOG
+          value: '1'
+        - name: build-image
+          value: localhost:5000/admin/image-builder
+        - name: CPUS
+          value: '2'
+        - name: MEMORY
+          value: '4096'
+          
+      workspaces:
+      - name: output
+        workspace: output-ws
+
+    - name: s3-upload-image
+      taskRef:
+        name: aws-cli
+      runAfter:
+      - build-capo-openstack-image
+      params:
+      - name: SCRIPT
+        value: |
+          set -x
+          pwd
+          aws $1 $(cat /root/.aws/cli-params) ls s3://$(cat /root/.aws/bucket-name)/
+          find $(workspaces.source.path)
+          ls -lsa $(workspaces.source.path)
+          aws $1 $(cat /root/.aws/cli-params) cp $(workspaces.source.path)/$2/$2 s3://$(cat /root/.aws/bucket-name)/$2/
+          aws $1 $(cat /root/.aws/cli-params) cp $(workspaces.source.path)/$2/$2.sha256sums s3://$(cat /root/.aws/bucket-name)/$2/
+      - name: ARGS
+        value:
+        - s3
+        - ubuntu-2004-kube-v$(params.k8sVersion)
+      workspaces:
+      - name: secrets
+        workspace: secrets
+      - name: source
+        workspace: output-ws
+        

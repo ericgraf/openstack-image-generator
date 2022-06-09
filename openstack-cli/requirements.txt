@@ -1,6 +1,0 @@
-openstackclient
-python-cinderclient
-python-octaviaclient
-python-designateclient
-python-glanceclient
-python-barbicanclient
